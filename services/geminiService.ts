@@ -14,7 +14,7 @@ export const runAIScraper = async (query: string): Promise<FondoEmpleado[]> => {
     model: "gemini-3-pro-preview",
     contents: `Busca en el sitio oficial de la Superintendencia de la Economía Solidaria (supersolidaria.gov.co) 
     y en datos.gov.co información de contacto de fondos de empleados en: ${query}. 
-    Extrae: nombre, nit, email, telefono, ciudad y direccion. 
+    Extrae: nombre, nit, email, telefono, ciudad, direccion y el nombre del representante legal si está disponible. 
     Clasifica como "Premium" si es de nivel 1 de supervisión.`,
     config: {
       tools: [{ googleSearch: {} }],
@@ -44,7 +44,6 @@ export const runAIScraper = async (query: string): Promise<FondoEmpleado[]> => {
   });
 
   try {
-    // Correctly access the .text property (not a function)
     const jsonStr = response.text?.trim() || "[]";
     const data = JSON.parse(jsonStr);
     return data.map((item: any, index: number) => ({
@@ -60,8 +59,7 @@ export const runAIScraper = async (query: string): Promise<FondoEmpleado[]> => {
 };
 
 /**
- * Fix: Added exported function findDirectoryLinks used in SearchTool.tsx
- * Uses Google Search Grounding to find official data source links.
+ * Encuentra enlaces oficiales de directorios.
  */
 export const findDirectoryLinks = async (): Promise<{ text: string; links: any[] }> => {
   const response = await ai.models.generateContent({
@@ -72,7 +70,6 @@ export const findDirectoryLinks = async (): Promise<{ text: string; links: any[]
     },
   });
 
-  // Extract URLs from groundingChunks as required by Search Grounding guidelines
   const links = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
   return {
     text: response.text || '',
@@ -81,14 +78,14 @@ export const findDirectoryLinks = async (): Promise<{ text: string; links: any[]
 };
 
 /**
- * Fix: Added exported function extractLeadsFromText used in DataScanner.tsx
- * Extracts structured leads from user-provided text content using Gemini.
+ * Extrae leads estructurados de texto, ahora incluyendo representante legal.
  */
 export const extractLeadsFromText = async (text: string): Promise<FondoEmpleado[]> => {
   const response = await ai.models.generateContent({
     model: "gemini-3-pro-preview",
-    contents: `Extrae información de fondos de empleados del siguiente texto. 
-    Devuelve una lista de objetos JSON con: nombre_fondo, nit, direccion, ciudad, departamento, email, telefono, sitio_web.
+    contents: `Extrae información detallada de fondos de empleados del siguiente texto. 
+    Identifica específicamente el nombre del Representante Legal si aparece.
+    Devuelve una lista JSON con: nombre_fondo, nit, direccion, ciudad, departamento, email, telefono, sitio_web, representante_legal.
     Texto: ${text}`,
     config: {
       responseMimeType: "application/json",
@@ -105,6 +102,7 @@ export const extractLeadsFromText = async (text: string): Promise<FondoEmpleado[
             email: { type: Type.STRING },
             telefono: { type: Type.STRING },
             sitio_web: { type: Type.STRING },
+            representante_legal: { type: Type.STRING },
             segmento: { type: Type.STRING }
           },
           required: ["nombre_fondo"]

@@ -12,6 +12,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
     { id: 'scraper', label: 'IA Scraper', icon: '🤖' },
     { id: 'directorio', label: 'Base de Datos', icon: '🗄️' },
+    { id: 'territorios', label: 'Territorios', icon: '🗺️' },
     { id: 'marketing', label: 'Campañas Email', icon: '✉️' },
   ];
 

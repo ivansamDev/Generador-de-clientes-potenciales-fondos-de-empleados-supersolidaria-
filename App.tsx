@@ -5,6 +5,7 @@ import Dashboard from './views/Dashboard';
 import ScraperConsole from './views/ScraperConsole';
 import LeadsDirectory from './views/LeadsDirectory';
 import MarketingCampaign from './views/MarketingCampaign';
+import Territorios from './views/Territorios';
 import { AppView, FondoEmpleado } from './types';
 
 const App: React.FC = () => {
@@ -41,6 +42,7 @@ const App: React.FC = () => {
       case 'dashboard': return <Dashboard leads={leads} onNavigate={setCurrentView} />;
       case 'scraper': return <ScraperConsole onExtract={addLeads} />;
       case 'directorio': return <LeadsDirectory leads={leads} onUpdateStatus={updateLeadStatus} onRemove={removeLead} />;
+      case 'territorios': return <Territorios />;
       case 'marketing': return <MarketingCampaign leads={leads} />;
       default: return <Dashboard leads={leads} onNavigate={setCurrentView} />;
     }

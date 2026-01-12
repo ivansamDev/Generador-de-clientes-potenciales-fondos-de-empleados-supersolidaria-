@@ -21,4 +21,4 @@ export interface FondoEmpleado {
   estado_lead: 'Nuevo' | 'Contactado' | 'Interesado' | 'Descartado';
 }
 
-export type AppView = 'dashboard' | 'scraper' | 'directorio' | 'marketing' | 'config';
+export type AppView = 'dashboard' | 'scraper' | 'directorio' | 'marketing' | 'territorios' | 'config';

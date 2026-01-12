@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { FondoEmpleado } from '../types';
+import { FondoEmpleado, SegmentoValor } from '../types';
 
 interface LeadsTableProps {
   leads: FondoEmpleado[];
@@ -10,38 +10,90 @@ interface LeadsTableProps {
 
 const LeadsTable: React.FC<LeadsTableProps> = ({ leads, onRemove, onUpdateStatus }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
 
-  // Filtrado de leads basado en el término de búsqueda extendido
-  const filteredLeads = leads.filter(l => 
-    l.nombre_fondo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.ciudad.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (l.email && l.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (l.nit && l.nit.includes(searchTerm)) ||
-    (l.representante_legal && l.representante_legal.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const statuses: FondoEmpleado['estado_lead'][] = ['Nuevo', 'Contactado', 'Interesado', 'Descartado'];
+  const segments: SegmentoValor[] = ['Premium (Grande)', 'Estándar (Mediano)', 'Emergente (Pequeño)'];
 
-  const exportToCSV = () => {
-    if (leads.length === 0) return;
-    
+  const toggleStatus = (status: string) => {
+    setSelectedStatuses(prev => 
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
+
+  const toggleSegment = (segment: string) => {
+    setSelectedSegments(prev => 
+      prev.includes(segment) ? prev.filter(s => s !== segment) : [...prev, segment]
+    );
+  };
+
+  const filteredLeads = leads.filter(l => {
+    const matchesSearch = 
+      l.nombre_fondo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      l.ciudad.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (l.email && l.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (l.nit && l.nit.includes(searchTerm)) ||
+      (l.representante_legal && l.representante_legal.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(l.estado_lead);
+    const matchesSegment = selectedSegments.length === 0 || selectedSegments.includes(l.segmento);
+
+    return matchesSearch && matchesStatus && matchesSegment;
+  });
+
+  const copyToClipboard = async () => {
+    if (filteredLeads.length === 0) return;
+
     const headers = [
-      "Nombre del Fondo", 
-      "Sigla",
-      "NIT", 
-      "Dirección",
-      "Ciudad", 
-      "Departamento", 
-      "Email Principal", 
-      "Teléfono de Contacto", 
-      "Sitio Web", 
-      "Representante Legal",
-      "Nivel de Supervisión",
-      "Segmento de Valor",
-      "Estado del Lead",
-      "Fecha de Extracción",
-      "URL de la Fuente"
+      "Nombre del Fondo", "Sigla", "NIT", "Dirección", "Ciudad", "Departamento", 
+      "Email", "Teléfono", "Sitio Web", "Representante Legal", 
+      "Nivel Supervisión", "Segmento", "Estado"
     ];
 
-    const rows = leads.map(l => [
+    const rows = filteredLeads.map(l => [
+      l.nombre_fondo,
+      l.sigla || '',
+      l.nit || '',
+      l.direccion || '',
+      l.ciudad || '',
+      l.departamento || '',
+      l.email || '',
+      l.telefono || '',
+      l.sitio_web || '',
+      l.representante_legal || 'No definido',
+      l.nivel_supervision || '',
+      l.segmento || '',
+      l.estado_lead || ''
+    ]);
+
+    const textData = [
+      headers.join('\t'),
+      ...rows.map(row => row.join('\t'))
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(textData);
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 2000);
+    } catch (err) {
+      console.error('Error al copiar:', err);
+    }
+  };
+
+  const exportToCSV = () => {
+    if (filteredLeads.length === 0) return;
+    
+    const headers = [
+      "Nombre del Fondo", "Sigla", "NIT", "Dirección", "Ciudad", "Departamento", 
+      "Email Principal", "Teléfono de Contacto", "Sitio Web", "Representante Legal",
+      "Nivel de Supervisión", "Segmento de Valor", "Estado del Lead", "Fecha de Extracción"
+    ];
+
+    const rows = filteredLeads.map(l => [
       l.nombre_fondo,
       l.sigla || 'N/A',
       l.nit || 'N/A',
@@ -55,86 +107,144 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, onRemove, onUpdateStatus
       l.nivel_supervision,
       l.segmento,
       l.estado_lead,
-      new Date(l.fecha_extraccion).toLocaleString(),
-      l.fuente_url || 'Búsqueda Directa'
+      new Date(l.fecha_extraccion).toLocaleString()
     ]);
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(r => r.map(field => {
-        const value = (field || '').toString().replace(/"/g, '""');
-        return `"${value}"`;
-      }).join(','))
+      ...rows.map(r => r.map(field => `"${(field || '').toString().replace(/"/g, '""')}"`).join(','))
     ].join('\n');
 
     const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Campaña_Marketing_SuperSolidaria_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.setAttribute("download", `Directorio_Completo_SuperSolidaria_${new Date().toISOString().split('T')[0]}.csv`);
     link.click();
-    document.body.removeChild(link);
   };
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-100 rounded-2xl text-blue-600">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+          <div className="p-3 bg-[#002D57] rounded-2xl text-white">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Directorio de Gestión</h2>
-            <p className="text-slate-500 mt-1">Base de datos enriquecida con representantes legales y segmentación.</p>
+            <h2 className="text-2xl font-bold text-slate-800">Gestión de Directorio</h2>
+            <p className="text-slate-500 mt-1">Base de datos unificada con Representantes Legales y NIT.</p>
           </div>
         </div>
-        <button
-          onClick={exportToCSV}
-          disabled={leads.length === 0}
-          className="bg-[#002D57] text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-900 disabled:opacity-50 transition-all shadow-lg flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          Exportar Base CRM (CSV)
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={copyToClipboard}
+            disabled={filteredLeads.length === 0}
+            className={`px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 ${
+              copyFeedback ? 'bg-green-600 text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {copyFeedback ? '¡Copiado!' : 'Copiar para Excel'}
+          </button>
+          <button
+            onClick={exportToCSV}
+            disabled={filteredLeads.length === 0}
+            className="bg-[#002D57] text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-900 disabled:opacity-50 transition-all shadow-lg flex items-center gap-2"
+          >
+            Exportar CSV
+          </button>
+        </div>
       </header>
 
       <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar por nombre, representante, NIT, ciudad o email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full md:w-2/3 pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm shadow-sm"
-            />
-            <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        <div className="p-6 border-b border-slate-100 bg-slate-50/50 space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Buscar por Fondo, Representante Legal, Ciudad o NIT..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm shadow-sm"
+              />
+              <svg className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </div>
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-6 py-4 rounded-2xl font-bold transition-all flex items-center gap-2 border ${
+                showFilters ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+              Filtrar
+            </button>
           </div>
+
+          {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white border border-slate-100 rounded-2xl shadow-inner animate-slideDown">
+              <div>
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Estado del Lead</h4>
+                <div className="flex flex-wrap gap-2">
+                  {statuses.map(status => (
+                    <button
+                      key={status}
+                      onClick={() => toggleStatus(status)}
+                      className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+                        selectedStatuses.includes(status) ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Segmento</h4>
+                <div className="flex flex-wrap gap-2">
+                  {segments.map(segment => (
+                    <button
+                      key={segment}
+                      onClick={() => toggleSegment(segment)}
+                      className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+                        selectedSegments.includes(segment) ? 'bg-amber-600 text-white border-amber-600' : 'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {segment}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-[#002D57] text-white text-[10px] uppercase tracking-widest font-black">
               <tr>
-                <th className="px-6 py-5">Fondo / Representante</th>
+                <th className="px-6 py-5">Fondo / Entidad</th>
+                <th className="px-6 py-5">Representante Legal</th>
                 <th className="px-6 py-5">Información Legal</th>
-                <th className="px-6 py-5">Contacto y Web</th>
-                <th className="px-6 py-5">Estatus / Segmento</th>
-                <th className="px-6 py-5">Gestión</th>
+                <th className="px-6 py-5">Contacto Directo</th>
+                <th className="px-6 py-5">Estatus</th>
+                <th className="px-6 py-5">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredLeads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-blue-50/30 transition-colors">
                   <td className="px-6 py-5">
-                    <p className="font-bold text-slate-800 leading-tight mb-1">{lead.nombre_fondo}</p>
+                    <p className="font-bold text-slate-800 leading-tight">{lead.nombre_fondo}</p>
+                    {lead.sigla && <p className="text-[10px] text-slate-400 font-medium">({lead.sigla})</p>}
+                  </td>
+                  <td className="px-6 py-5">
                     <div className="flex items-center gap-2">
-                      <span className="p-1 bg-slate-100 rounded text-[10px] text-slate-500">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                      </span>
-                      <p className="text-xs font-semibold text-blue-600">{lead.representante_legal || 'Representante no definido'}</p>
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[#002D57]">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-700">{lead.representante_legal || 'No identificado'}</p>
+                        <p className="text-[9px] text-slate-400 uppercase font-black">Rep. Legal</p>
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-5">
@@ -142,13 +252,8 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, onRemove, onUpdateStatus
                     <p className="text-xs text-slate-400 mt-0.5">{lead.ciudad}, {lead.departamento}</p>
                   </td>
                   <td className="px-6 py-5">
-                    <p className="text-slate-800 font-bold">{lead.email || 'Sin correo'}</p>
+                    <p className="text-slate-800 font-bold truncate max-w-[140px]">{lead.email || 'Sin correo'}</p>
                     <p className="text-xs text-slate-500">{lead.telefono || 'Sin teléfono'}</p>
-                    {lead.sitio_web && (
-                      <a href={lead.sitio_web} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline mt-1 block truncate max-w-[150px]">
-                        {lead.sitio_web}
-                      </a>
-                    )}
                   </td>
                   <td className="px-6 py-5">
                     <div className="space-y-2">
@@ -162,10 +267,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, onRemove, onUpdateStatus
                           'bg-slate-100 text-slate-700'
                         }`}
                       >
-                        <option value="Nuevo">Nuevo</option>
-                        <option value="Contactado">Contactado</option>
-                        <option value="Interesado">Interesado</option>
-                        <option value="Descartado">Descartado</option>
+                        {statuses.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                       <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                         lead.segmento === 'Premium (Grande)' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
@@ -178,7 +280,6 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, onRemove, onUpdateStatus
                     <button 
                       onClick={() => onRemove(lead.id)}
                       className="text-slate-300 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-xl"
-                      title="Eliminar registro"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>
@@ -187,8 +288,8 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, onRemove, onUpdateStatus
               ))}
               {filteredLeads.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center text-slate-400 italic font-medium bg-slate-50/30">
-                    {leads.length === 0 ? "No hay registros disponibles. Usa el Scraper o el Scanner de datos para poblar la base." : "No se encontraron resultados para tu búsqueda."}
+                  <td colSpan={6} className="px-6 py-20 text-center text-slate-400 italic font-medium bg-slate-50/30">
+                    No se encontraron registros. Intenta ajustar los filtros o la búsqueda.
                   </td>
                 </tr>
               )}
