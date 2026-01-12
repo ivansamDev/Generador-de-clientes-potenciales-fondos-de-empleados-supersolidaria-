@@ -1,0 +1,7 @@
+{
+  "name": "SuperSolidaria Lead Explorer",
+  "description": "Una herramienta profesional diseñada para extraer, organizar y gestionar datos de contacto de Fondos de Empleados desde el portal de la Superintendencia de la Economía Solidaria, facilitando campañas de marketing de beneficios.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
